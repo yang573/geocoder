@@ -53,7 +53,7 @@ def geocode_unstructured_csv(infile: str, outfile: str, ignore: List[int], has_h
     # Create header for output file
     header = None
     if has_header:
-        header = addrs[0]
+        header = addrs.pop(0)
     else:
         header = ['-' for i in addrs[0]]
     header.append('latitude')
