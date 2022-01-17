@@ -1,4 +1,4 @@
-import csv, time, sys
+import csv, getopt, time, sys
 import requests
 from typing import Tuple, List
 
@@ -29,28 +29,91 @@ def geocode_query(addr: str) -> Tuple[str, str]:
 ## Reading CSV
 def read_unstructured_csv(filename: str) -> List[str]:
     lines = None
-    with open(filename, "r") as f:
-        reader = csv.reader(f)
-        lines = [list(map(lambda s: s.strip(), row)) for row in list(reader)]
+    try:
+        with open(filename, "r") as f:
+            reader = csv.reader(f)
+            lines = [list(map(lambda s: s.strip(), row)) for row in list(reader)]
+    except (IOError, OSError) as err:
+        print(err)
     return lines
 
 ## Main parsing functions
 # API TOS wants us to limit request to 1/second
-def geocode_unstructured_csv(filename: str):
-    addrs = read_unstructured_csv(filename)
-    for addr in addrs:
-        addr = ", ".join(addr)
-        x, y = geocode_query(addr)
-        print("x:", x, "y:", y, "addr:", addr)
-        time.sleep(1)
+def geocode_unstructured_csv(infile: str, outfile: str, has_header: bool):
+    # Read the file
+    addrs = read_unstructured_csv(infile)
+    if addrs == None:
+        return False
+
+    # Create header for output file
+    header = None
+    if has_header:
+        header = addrs[0]
+    else:
+        header = ['-' for i in addrs[0]]
+    header.append('latitude')
+    header.append('longitude')
+
+    # Geocode and write to output
+    try:
+        with open(outfile, "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            for addr in addrs:
+                addr_str = ", ".join(addr)
+                x, y = geocode_query(addr_str)
+                addr_str += " | x: " + x + " y: " + y
+                print(addr_str)
+
+                addr.append(x)
+                addr.append(y)
+                writer.writerow(addr)
+                time.sleep(1)
+    except (IOError, OSError, csv.Error) as err:
+        print(err)
+        return False
+    return True
+
+def help():
+    print("Usage: python3 app.py -i <input> [options]")
+    print("  -i, --input [file]: Input csv file.")
+    print("  -o, --output [file]: Output csv file. Defaults to <input>-geocoded.csv")
+    print("  --no-header: File contains no header, so do not skip the first row.")
     return
 
 ## main
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python3 app.py [file]")
+    # Parse arguments
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "i:o:", ['input=', 'output=', 'no-header'])
+    except getopt.GetoptError as err:
+        print(err)
+        help()
         sys.exit(1)
 
-    geocode_unstructured_csv(sys.argv[1])
-    sys.exit(0)
+    header = True
+    infile = None
+    outfile = None
+    for o, a in opts:
+        if o in ("-i", '--input'):
+            infile = a
+        elif o in ("-o", '--output'):
+            outfile = a
+        elif o == "--no-header":
+            header = False
+        else:
+            print("Unrecognized option", o)
+            help()
+            sys.exit(1)
+
+    if not infile:
+        print("Missing input file")
+        help()
+        sys.exit(1)
+    if not outfile:
+        outfile = infile.rsplit('.', 1)[0] + "-geocoded" + ".csv"
+
+    # Geocode the data
+    success = geocode_unstructured_csv(infile, outfile, header)
+    sys.exit(int(success))
 
