@@ -1,4 +1,4 @@
-import csv, sys
+import csv, time, sys
 import requests
 from typing import Tuple, List
 
