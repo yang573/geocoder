@@ -6,14 +6,17 @@ from typing import Tuple, List
 app_id = "Simple Geocoder" # change with the name of your app/organization
 
 ## Sending API requests
-def send_geocode_request(params: List[str]) -> requests.Response:
+def send_geocode_request(params: List[str]) -> Tuple[str, str]:
     # request headers
     headers = {"user-agent": app_id}
 
     # send request and return relevant info
     resp = requests.get("https://nominatim.openstreetmap.org/search", headers=headers, params=params)
-    json = resp.json()[0]
-    return (json['lat'], json['lon'])
+    json = resp.json()
+    if json:
+        return (json[0]['lat'], json[0]['lon'])
+    else:
+        return ('0', '0')
 
 def geocode_query(addr: str) -> Tuple[str, str]:
     # request params
@@ -22,6 +25,8 @@ def geocode_query(addr: str) -> Tuple[str, str]:
         "format": "json",
         "limit": 1
     }
+
+    print(params)
 
     x, y = send_geocode_request(params)
     return (x, y)
@@ -39,7 +44,7 @@ def read_unstructured_csv(filename: str) -> List[str]:
 
 ## Main parsing functions
 # API TOS wants us to limit request to 1/second
-def geocode_unstructured_csv(infile: str, outfile: str, has_header: bool):
+def geocode_unstructured_csv(infile: str, outfile: str, ignore: List[int], has_header: bool):
     # Read the file
     addrs = read_unstructured_csv(infile)
     if addrs == None:
@@ -60,7 +65,7 @@ def geocode_unstructured_csv(infile: str, outfile: str, has_header: bool):
             writer = csv.writer(f)
             writer.writerow(header)
             for addr in addrs:
-                addr_str = ", ".join(addr)
+                addr_str = ", ".join([x for i, x in enumerate(addr) if i+1 not in ignore])
                 x, y = geocode_query(addr_str)
                 addr_str += " | x: " + x + " y: " + y
                 print(addr_str)
@@ -78,6 +83,7 @@ def help():
     print("Usage: python3 app.py -i <input> [options]")
     print("  -i, --input [file]: Input csv file.")
     print("  -o, --output [file]: Output csv file. Defaults to <input>-geocoded.csv")
+    print("  --ignore [columns]: Comma-separate list of columns to ignore, 1-indexed")
     print("  --no-header: File contains no header, so do not skip the first row.")
     return
 
@@ -85,13 +91,14 @@ def help():
 if __name__ == "__main__":
     # Parse arguments
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "i:o:", ['input=', 'output=', 'no-header'])
+        opts, args = getopt.getopt(sys.argv[1:], "i:o:", ['input=', 'output=', 'ignore=', 'no-header'])
     except getopt.GetoptError as err:
         print(err)
         help()
         sys.exit(1)
 
     header = True
+    ignore = []
     infile = None
     outfile = None
     for o, a in opts:
@@ -101,6 +108,8 @@ if __name__ == "__main__":
             outfile = a
         elif o == "--no-header":
             header = False
+        elif o == "--ignore":
+            ignore = [int(x) for x in a.split(',')]
         else:
             print("Unrecognized option", o)
             help()
@@ -114,6 +123,6 @@ if __name__ == "__main__":
         outfile = infile.rsplit('.', 1)[0] + "-geocoded" + ".csv"
 
     # Geocode the data
-    success = geocode_unstructured_csv(infile, outfile, header)
+    success = geocode_unstructured_csv(infile, outfile, ignore, header)
     sys.exit(int(success))
 
