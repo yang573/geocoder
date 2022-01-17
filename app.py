@@ -26,8 +26,6 @@ def geocode_query(addr: str) -> Tuple[str, str]:
         "limit": 1
     }
 
-    print(params)
-
     x, y = send_geocode_request(params)
     return (x, y)
 
@@ -67,8 +65,7 @@ def geocode_unstructured_csv(infile: str, outfile: str, ignore: List[int], has_h
             for addr in addrs:
                 addr_str = ", ".join([x for i, x in enumerate(addr) if i+1 not in ignore])
                 x, y = geocode_query(addr_str)
-                addr_str += " | x: " + x + " y: " + y
-                print(addr_str)
+                print("{} | ({}, {})".format(addr_str, x, y))
 
                 addr.append(x)
                 addr.append(y)
